@@ -1,0 +1,11 @@
+package heatmap;
+
+message Location {
+    required float latitude 1;
+    required float longitude 2;
+    required float percent 3;
+}
+
+message Map {
+    repeated Location location 1;
+}

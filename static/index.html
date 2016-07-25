@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IPv6 Heatmap</title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+
+    <link rel="stylesheet" href="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.css" />
+    <script src="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.js"></script>
+    <script src="/static/js/leaflet-heat.js"></script>
+
+    <style>
+        #heatmap {
+            height: 620px;
+            width: 1000px;
+        }
+    </style>
+</head>
+<body>
+
+<div align="center">
+    <h1>IPv6 Heatmap</h1>
+</div>
+
+<div align="center"><div id="heatmap"></div></div>
+
+<script>
+    var heatmap = L.map('heatmap', {
+        maxZoom: 18,
+        minZoom: 2,
+        maxBounds: L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180))
+    }).setView([37.5, -83.2], 6);
+
+    L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+        attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+        id: 'mapbox.streets',
+        accessToken: 'pk.eyJ1IjoicmF1Z3R1cmkiLCJhIjoiY2lyMWJnYzV6MDJ3YmZrbWd3OHFlNDVxZyJ9.cTA9UH0lXPtwZ75JrMP8yw'
+    }).addTo(heatmap);
+
+    var heatlayer = L.heatLayer([
+    ], {
+        minOpacity: 0.5,
+        radius: 8,
+        gradient: {0: 'red'}
+    }).addTo(heatmap);
+
+    function getLocations() {
+        var bounds = heatmap.getBounds();
+        var northEast = bounds.getNorthEast().wrap();
+        var southWest = bounds.getSouthWest().wrap();
+        $.ajax({
+            url: "/locations",
+            data: {
+                north: northEast.lat,
+                south: southWest.lat,
+                east: northEast.lng,
+                west: southWest.lng
+            },
+            success: function(data) {
+                heatlayer.setLatLngs([]);
+                heatlayer.setOptions({radius: heatmap.getZoom() + 3});
+                $.each(data.locations, function(i, location) {
+                    var map_point = [
+                        location.latitude,
+                        location.longitude,
+                        location.percent
+                    ];
+                    heatlayer.addLatLng(map_point);
+                });
+            }
+        });
+    }
+
+    heatmap.on('moveend', getLocations);
+    getLocations();
+</script>
+
+</body>
+</html>
