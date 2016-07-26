@@ -50,17 +50,19 @@
         var bounds = heatmap.getBounds();
         var northEast = bounds.getNorthEast().wrap();
         var southWest = bounds.getSouthWest().wrap();
+        var zoom = heatmap.getZoom();
         $.ajax({
             url: "/locations",
             data: {
                 north: northEast.lat,
                 south: southWest.lat,
                 east: northEast.lng,
-                west: southWest.lng
+                west: southWest.lng,
+                precision: Math.floor((zoom + 2) / 5)
             },
             success: function(data) {
                 heatlayer.setLatLngs([]);
-                heatlayer.setOptions({radius: heatmap.getZoom() + 3});
+                heatlayer.setOptions({radius: zoom + 3});
                 $.each(data.locations, function(i, location) {
                     var map_point = [
                         location.latitude,

@@ -3,7 +3,7 @@
 
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 
 app = Flask(__name__)
 #TODO: This should be much faster with a real database instead of sqlite.
@@ -51,17 +51,6 @@ class Location(db.Model):
         self.longitude = longitude
         self.percent = percent
 
-    def to_json(self):
-        """ Custom representation of object as dict for JSON serialization.
-        TODO: The better way to handle this long term might be a custom class
-              for JSON serialization. However, due to the amount of data this
-              will eventually be replaced with Protocol Buffers instead.
-
-        """
-        return {'latitude': self.latitude,
-                'longitude': self.longitude,
-                'percent': self.percent}
-
     def __repr__(self):
         return '<Location (Latitude: %r, Longitude: %r, Percent: %r)>' % (
             self.latitude, self.longitude, self.percent)
@@ -69,13 +58,14 @@ class Location(db.Model):
 
 @app.route('/locations', methods=['GET'])
 def locations():
-    """ Get all locations within a given area.
+    """ Get all locations within a given area, summarized by precision value.
 
     Args:
         north: Latitude for northern border of the area.
         south: Latitude for southern border of the area.
         east: Longitude for eastern border of the area.
         west: Longitude for western border of the area.
+        precision: Number of digits to round coordinates to for grouping.
 
     Returns:
         locations: List of all locations within the area.
@@ -85,18 +75,23 @@ def locations():
     south = float(request.args.get('south', -90))
     east = float(request.args.get('east', 180))
     west = float(request.args.get('west', -180))
-    # This query gets a full list of all the locations within the given area.
-    # TODO: For better performance it may be useful to find a way to group the
-    #       locations to return fewer results when viewing large areas. We are
-    #       using percent rather than raw count or a pre-calculated intensity
-    #       to allow for easier combinations of locations later.
-    query = Location.query.filter(and_(Location.latitude <= north,
-                                       Location.latitude >= south,
-                                       Location.longitude <= east,
-                                       Location.longitude >= west))
-    # See TODO under Location.to_json for why this is currently using JSON. It
-    # will be replaced with Protocol Buffers in the future.
-    return jsonify(locations=[loc.to_json() for loc in query.all()])
+    precision = int(request.args.get('precision', 0))
+
+    # Group coordinates based on precision value and sum the percents to get the
+    # combined intensity value.
+    query = db.session.query(func.round(Location.latitude, precision).label('latitude'),
+                             func.round(Location.longitude, precision).label('longitude'),
+                             func.sum(Location.percent).label('percent'))
+    query = query.group_by('latitude', 'longitude')
+    query = query.filter(and_(Location.latitude <= north,
+                              Location.latitude >= south,
+                              Location.longitude <= east,
+                              Location.longitude >= west))
+
+    return jsonify(locations=[{'latitude': loc.latitude,
+                               'longitude': loc.longitude,
+                               'percent': loc.percent}
+                              for loc in query.all()])
 
 
 @app.route('/', methods=['GET'])
